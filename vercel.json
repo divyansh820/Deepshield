@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/diagnostics",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/benchmarks",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/models",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/analyze",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/analyze_batch",
+      "destination": "/api/index.py"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "status": "pending_test_dataset",
+  "message": "Test dataset not found at 'data/test'. Provide data/test/authentic and data/test/ai_generated to evaluate.",
+  "metrics": null
+}

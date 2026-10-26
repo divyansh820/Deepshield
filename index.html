@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DeepShield — AI Fake Image Detection & Grad-CAM Forensics</title>
+  <meta name="description" content="State-of-the-art AI fake image detector powered by ResNet, DenseNet-121, and Grad-CAM visual heatmaps for explainable forensic analysis."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+<div id="toastWrap" class="toast-wrap"></div>
+
+<!-- ── NAVIGATION ── -->
+<nav>
+  <div class="nav-logo">
+    <div class="shield-icon-wrap">
+      <svg class="shield-svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <path d="m9 12 2 2 4-4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="shield-glow"></div>
+    </div>
+    <div class="brand-text">
+      <span class="brand-name">DeepShield</span>
+      <span class="brand-sub">GRAD-CAM · RESNET · DENSENET121</span>
+    </div>
+  </div>
+
+  <div class="nav-right">
+    <div class="nav-actions">
+      <button type="button" class="nav-btn" id="navDiagnosticsBtn">🩺 Diagnostics</button>
+      <button type="button" class="nav-btn" id="navBenchmarksBtn">📊 Benchmarks</button>
+      <button type="button" class="nav-btn" id="navHistoryBtn">🕒 History (<span id="historyCount">0</span>)</button>
+    </div>
+
+    <div class="nav-badge-pill" id="modelStatusPill">
+      <span class="m-dot"></span>
+      <span id="modelStatusLabel">Checking Models…</span>
+    </div>
+
+    <div class="server-pill" id="serverPill">
+      <span class="sdot" id="sDot"></span>
+      <span id="sLabel">checking…</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ── MAIN CONTENT ── -->
+<main class="main-center">
+
+  <div class="hero-center">
+    <div class="hero-tag">
+      <span class="pulse-dot"></span> Explainable Deep Vision Pipeline
+    </div>
+    <h1>Visual Forensic AI.<br/><em>Explainable Truth.</em></h1>
+    <p>Detect AI-generated synthetic images & deepfakes with <strong>ResNet</strong> and <strong>DenseNet-121</strong>. Visualise exact decision regions with <strong>Grad-CAM heatmaps</strong>.</p>
+  </div>
+
+  <!-- MODE SWITCHER TABS -->
+  <div class="mode-tabs-wrap">
+    <div class="mode-tabs">
+      <button type="button" class="mode-tab active" id="tabSingle">Single Analysis</button>
+      <button type="button" class="mode-tab" id="tabBatch">Batch Analysis</button>
+    </div>
+  </div>
+
+  <!-- SINGLE UPLOAD CARD -->
+  <div class="upload-card" id="uploadCard">
+
+    <!-- MODEL SELECTOR -->
+    <div class="model-selector-wrap">
+      <div class="ms-title">SELECT BACKBONE ARCHITECTURE</div>
+      <div class="model-options" id="modelOptions">
+        <button type="button" class="model-btn active" data-model="ensemble" id="btnEnsemble">
+          <span class="mb-icon">⚡</span>
+          <span class="mb-name">Ensemble</span>
+          <span class="mb-tag">ResNet + DenseNet</span>
+        </button>
+        <button type="button" class="model-btn" data-model="densenet121" id="btnDenseNet">
+          <span class="mb-icon">🧬</span>
+          <span class="mb-name">DenseNet-121</span>
+          <span class="mb-tag">Feature-Reuse</span>
+        </button>
+        <button type="button" class="model-btn" data-model="resnet50" id="btnResNet">
+          <span class="mb-icon">🔬</span>
+          <span class="mb-name">ResNet-50</span>
+          <span class="mb-tag">Residual CAM</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- DROPZONE -->
+    <input type="file" id="fileInput" accept="image/*" hidden/>
+
+    <label class="dropzone" id="dropzone" for="fileInput">
+      <div class="dz-rings">
+        <div class="dzr r1"></div>
+        <div class="dzr r2"></div>
+        <div class="dzr r3"></div>
+      </div>
+      <div class="dz-icon-svg">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <p class="dz-main">Drop Image for Forensic Inspection</p>
+      <p class="dz-hint">PNG · JPG · WEBP · TIFF (Max 25MB)</p>
+    </label>
+
+    <!-- PREVIEW AREA -->
+    <div class="preview-area" id="previewArea" style="display:none">
+      <div class="img-frame">
+        <img id="previewImg" alt="preview"/>
+        <div class="scan-overlay" id="scanOverlay">
+          <div class="scan-beam" id="scanBeam"></div>
+          <div class="scan-grid"></div>
+          <div class="corner tl"></div>
+          <div class="corner tr"></div>
+          <div class="corner bl"></div>
+          <div class="corner br"></div>
+          <div class="scan-pct" id="scanPct">0%</div>
+        </div>
+        <div class="done-badge" id="doneBadge" style="display:none">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+          Ready for Analysis
+        </div>
+      </div>
+      <div class="img-meta-bar">
+        <span id="metaName" class="meta-name"></span>
+        <span id="metaSize" class="meta-size"></span>
+        <button class="change-btn" id="changeImgBtn">Change</button>
+      </div>
+    </div>
+
+    <!-- RUN ANALYSIS BUTTON -->
+    <button class="run-btn" id="runBtn" disabled>
+      <span>Run Deep Forensic Analysis</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+
+    <div class="sample-images-bar">
+      <span class="sib-label">OR TRY DEMO SAMPLES:</span>
+      <div class="sib-buttons">
+        <button type="button" class="sample-btn" id="btnSampleAI">🤖 AI Synthetic (Flux/SD)</button>
+        <button type="button" class="sample-btn" id="btnSampleReal">📷 Camera Photo (Real)</button>
+      </div>
+    </div>
+
+    <div class="upload-hints">
+      <span>✦ Midjourney v6 &amp; SDXL</span>
+      <span>✦ DALL·E 3 &amp; Flux</span>
+      <span>✦ Multi-Scale Forensics</span>
+      <span>✦ Uncertainty Decision Policy</span>
+    </div>
+  </div>
+
+  <!-- BATCH ANALYSIS CARD -->
+  <div class="batch-card" id="batchCard">
+    <div class="ms-title">BATCH FORENSIC EVALUATION</div>
+    <p style="font-size:12px;color:var(--txt-muted);margin:8px 0 16px;">Upload multiple images (up to 10) to run batch classification with model agreement evaluation.</p>
+
+    <input type="file" id="batchFileInput" multiple accept="image/*" hidden/>
+    <label class="dropzone" for="batchFileInput" style="padding:28px 20px;">
+      <p class="dz-main" style="font-size:15px;">Click or Drag Multiple Images Here</p>
+      <p class="dz-hint">Select up to 10 images for batch processing</p>
+    </label>
+
+    <div class="batch-queue" id="batchQueue" style="display:none;"></div>
+
+    <div style="display:flex;gap:12px;margin-top:16px;">
+      <button class="run-btn" id="runBatchBtn" disabled style="flex:1;">
+        <span>Analyze Batch Images</span>
+      </button>
+      <button class="btn-secondary" id="downloadBatchCsvBtn" style="display:none;">
+        <span>📥 Export CSV</span>
+      </button>
+    </div>
+
+    <div class="batch-table-wrap" id="batchTableWrap" style="display:none;">
+      <table class="batch-table">
+        <thead>
+          <tr>
+            <th>Filename</th>
+            <th>Verdict</th>
+            <th>AI Prob</th>
+            <th>Confidence</th>
+            <th>DenseNet</th>
+            <th>ResNet</th>
+            <th>Agreement</th>
+          </tr>
+        </thead>
+        <tbody id="batchTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<!-- ══════════════════════════════════════════════════════════════
+     RESULTS & GRAD-CAM EXPLAINABILITY MODAL
+══════════════════════════════════════════════════════════════ -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal" id="modal">
+    <button class="modal-x" id="closeModalBtn">✕</button>
+
+    <!-- 1. SCANNING STATE -->
+    <div class="modal-scanning" id="modalScanning">
+      <div class="scanning-img-wrap">
+        <img id="modalScanImg" alt=""/>
+        <div class="modal-scan-overlay">
+          <div class="modal-scan-beam"></div>
+          <div class="modal-scan-grid"></div>
+          <div class="corner tl"></div>
+          <div class="corner tr"></div>
+          <div class="corner bl"></div>
+          <div class="corner br"></div>
+        </div>
+      </div>
+      <div class="scanning-steps" id="scanningSteps"></div>
+      <p class="scanning-label" id="scanningLabel">Initialising Deep Vision Pipelines…</p>
+      <div class="scanning-bar"><div class="scanning-fill" id="scanningFill"></div></div>
+    </div>
+
+    <!-- 2. RESULT & EXPLAINABILITY STATE -->
+    <div class="modal-result" id="modalResult" style="display:none">
+      
+      <!-- LEFT COLUMN: GRAD-CAM VISUAL STUDIO -->
+      <div class="mr-left">
+        <div class="cam-studio-header">
+          <div class="cam-title">
+            <span>🔬 Grad-CAM Studio</span>
+            <span class="cam-layer-tag" id="camLayerTag">Layer: features.norm5</span>
+          </div>
+          <!-- VIEW SELECTOR TABS -->
+          <div class="cam-tabs" id="camTabs">
+            <button type="button" class="cam-tab active" data-view="overlay">Overlay</button>
+            <button type="button" class="cam-tab" data-view="split">Split Slider</button>
+            <button type="button" class="cam-tab" data-view="heatmap">Heatmap</button>
+            <button type="button" class="cam-tab" data-view="original">Original</button>
+          </div>
+        </div>
+
+        <!-- VISUAL VIEWER CANVAS -->
+        <div class="cam-viewport" id="camViewport">
+          <!-- Standalone Image Views -->
+          <img id="viewOriginalImg" class="cam-img-layer" alt="Original" style="display:none"/>
+          <img id="viewHeatmapImg" class="cam-img-layer" alt="Heatmap" style="display:none"/>
+          <img id="viewOverlayImg" class="cam-img-layer active" alt="Grad-CAM Overlay"/>
+          
+          <!-- Split Comparison Container -->
+          <div class="split-container" id="splitContainer" style="display:none">
+            <img id="splitOriginalImg" class="split-base" alt="Base"/>
+            <div class="split-overlay-wrap" id="splitOverlayWrap">
+              <img id="splitHeatmapImg" class="split-top" alt="Heatmap Layer"/>
+            </div>
+            <div class="split-handle" id="splitHandle">
+              <div class="split-handle-line"></div>
+              <div class="split-handle-knob">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="15 18 9 12 15 6"/>
+                  <polyline points="9 18 15 12 9 6" transform="rotate(180 12 12)"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="mr-verdict-overlay" id="mrVerdictOverlay"></div>
+        </div>
+
+        <!-- OPACITY SLIDER (for overlay mode) -->
+        <div class="cam-opacity-bar" id="camOpacityBar">
+          <span class="cop-label">Heatmap Opacity</span>
+          <input type="range" id="opacitySlider" min="10" max="100" value="65" class="custom-range"/>
+          <span class="cop-val" id="opacityVal">65%</span>
+        </div>
+
+        <!-- REGION EXPLANATION BOX -->
+        <div class="hot-regions-card">
+          <div class="hr-header">
+            <span class="hr-badge">GRAD-CAM ACTIVATION REGIONS</span>
+            <span class="hr-sub" id="hrSub">Decision Hotspots</span>
+          </div>
+          <div class="hr-list" id="hrList">
+            <!-- Dynamically populated -->
+          </div>
+          <div class="cam-disclaimer-note">
+            ⚠️ <strong>Explainability Note:</strong> Grad-CAM highlights spatial regions contributing most heavily to the model's classification score. It does not independently prove an image is authentic or synthetic.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN: FORENSIC METRICS & DIAGNOSTICS -->
+      <div class="mr-right">
+        
+        <!-- DISAGREEMENT WARNING BANNER -->
+        <div class="disagreement-banner" id="disagreementBanner">
+          <div class="db-icon">⚠️</div>
+          <div>
+            <div class="db-title">Model Disagreement Warning</div>
+            <div class="db-desc" id="disagreementText">DenseNet-121 and ResNet-50 predictions diverge significantly. Decision uncertainty increased.</div>
+          </div>
+        </div>
+
+        <div class="mr-header">
+          <div>
+            <div class="mr-model-badge" id="mrModelBadge">Ensemble Analysis</div>
+            <div class="mr-title" id="mrTitle">Likely Authentic</div>
+          </div>
+          <div class="mr-chip" id="mrChip">Authentic</div>
+        </div>
+
+        <!-- CONFIDENCE ROW -->
+        <div class="mr-score-row">
+          <div class="ring-wrap">
+            <svg width="92" height="92" viewBox="0 0 92 92">
+              <circle cx="46" cy="46" r="38" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="7"/>
+              <circle cx="46" cy="46" r="38" fill="none" stroke-width="7"
+                stroke-linecap="round"
+                stroke-dasharray="238.7" stroke-dashoffset="238.7"
+                id="ringArc" transform="rotate(-90 46 46)"/>
+            </svg>
+            <div class="ring-inner">
+              <div class="ring-pct" id="ringPct">0%</div>
+              <div class="ring-lbl">confidence</div>
+            </div>
+          </div>
+          <div class="mr-bar-col">
+            <div class="mr-bar-label">
+              <span>Authentic</span><span>AI Synthetic</span>
+            </div>
+            <div class="mr-bar-track">
+              <div class="mr-bar-fill" id="mrBarFill"></div>
+              <div class="mr-bar-shine"></div>
+            </div>
+            <div class="mr-bar-subtext" id="mrBarSubtext">
+              Calibrated uncertainty estimation across dual backbones and forensic metrics.
+            </div>
+          </div>
+        </div>
+
+        <!-- NEURAL NETWORK BREAKDOWN -->
+        <div class="nn-breakdown">
+          <div class="nn-header">NEURAL BACKBONE COMPARISON &amp; AGREEMENT</div>
+          <div class="nn-grid">
+            <div class="nn-card">
+              <div class="nn-label">DenseNet-121</div>
+              <div class="nn-val" id="nnDenseVal">—</div>
+            </div>
+            <div class="nn-card">
+              <div class="nn-label">ResNet-50</div>
+              <div class="nn-val" id="nnResVal">—</div>
+            </div>
+            <div class="nn-card">
+              <div class="nn-label">Agreement</div>
+              <div class="nn-val" id="nnAgreementVal">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FORENSIC METRICS GRID -->
+        <div class="mr-metrics" id="mrMetrics"></div>
+
+        <!-- EXPLANATION TAGS -->
+        <div class="mr-tags" id="mrTags"></div>
+
+        <!-- TIMING BREAKDOWN STRIP -->
+        <div class="timing-strip" id="timingStrip">
+          <span>Inference: <strong id="tInference">—</strong></span>
+          <span>Forensics: <strong id="tForensics">—</strong></span>
+          <span>Grad-CAM: <strong id="tGradcam">—</strong></span>
+          <span>Total: <strong id="tTotal">—</strong></span>
+        </div>
+
+        <!-- ACTION BUTTONS ROW -->
+        <div class="action-btns-row">
+          <button class="btn-secondary" id="downloadReportBtn">
+            <span>📄 Download Forensic Report</span>
+          </button>
+          <button class="btn-secondary" id="viewMetadataBtn">
+            <span>🔍 View Metadata</span>
+          </button>
+          <button class="analyse-again-btn" id="analyseAgainBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            Analyse Another
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     SUBMODAL 1: MODEL DIAGNOSTICS MODAL
+══════════════════════════════════════════════════════════════ -->
+<div class="submodal-bg" id="diagnosticsModal">
+  <div class="submodal">
+    <button class="modal-x" id="closeDiagBtn">✕</button>
+    <div class="submodal-title">🩺 Model &amp; System Diagnostics</div>
+    <div class="submodal-sub">Real-time status of loaded checkpoint weights, compute devices, and execution pipelines.</div>
+
+    <div class="submodal-section">
+      <div class="submodal-section-title">HARDWARE &amp; RUNTIME</div>
+      <div class="diag-grid">
+        <div class="diag-item"><span class="diag-lbl">COMPUTE DEVICE</span><span class="diag-val" id="diagDevice">—</span></div>
+        <div class="diag-item"><span class="diag-lbl">CUDA ACCELERATION</span><span class="diag-val" id="diagCuda">—</span></div>
+        <div class="diag-item"><span class="diag-lbl">PYTORCH VERSION</span><span class="diag-val" id="diagTorch">—</span></div>
+        <div class="diag-item"><span class="diag-lbl">OPERATING MODE</span><span class="diag-val" id="diagMode">—</span></div>
+      </div>
+    </div>
+
+    <div class="submodal-section">
+      <div class="submodal-section-title">CHECKPOINT INTEGRITY</div>
+      <div class="diag-grid">
+        <div class="diag-item"><span class="diag-lbl">DENSENET-121</span><span class="diag-val" id="diagDense">—</span></div>
+        <div class="diag-item"><span class="diag-lbl">RESNET-50</span><span class="diag-val" id="diagRes">—</span></div>
+        <div class="diag-item" style="grid-column:1 / -1;"><span class="diag-lbl">CHECKPOINT FOLDER</span><span class="diag-val" id="diagCkptDir">—</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     SUBMODAL 2: BENCHMARK EVALUATION MODAL
+══════════════════════════════════════════════════════════════ -->
+<div class="submodal-bg" id="benchmarksModal">
+  <div class="submodal">
+    <button class="modal-x" id="closeBenchBtn">✕</button>
+    <div class="submodal-title">📊 Held-Out Test Benchmarks</div>
+    <div class="submodal-sub">Empirical evaluation metrics computed on labeled authentic and synthetic test sets.</div>
+
+    <div id="benchmarkContent">
+      <div class="submodal-section">
+        <div class="submodal-section-title">CLASSIFICATION METRICS</div>
+        <div class="diag-grid">
+          <div class="diag-item"><span class="diag-lbl">TEST ACCURACY</span><span class="diag-val" id="bmAcc">—</span></div>
+          <div class="diag-item"><span class="diag-lbl">ROC-AUC</span><span class="diag-val" id="bmAuc">—</span></div>
+          <div class="diag-item"><span class="diag-lbl">PRECISION</span><span class="diag-val" id="bmPrec">—</span></div>
+          <div class="diag-item"><span class="diag-lbl">RECALL</span><span class="diag-val" id="bmRec">—</span></div>
+          <div class="diag-item"><span class="diag-lbl">F1-SCORE</span><span class="diag-val" id="bmF1">—</span></div>
+          <div class="diag-item"><span class="diag-lbl">FALSE POSITIVE RATE</span><span class="diag-val" id="bmFpr">—</span></div>
+        </div>
+      </div>
+
+      <div class="submodal-section">
+        <div class="submodal-section-title">CONFUSION MATRIX (HELD-OUT TEST SET)</div>
+        <table class="cm-table">
+          <thead>
+            <tr><th>Actual \ Predicted</th><th>Predicted Authentic</th><th>Predicted AI-Generated</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>Actual Authentic</strong></td><td class="cm-cell" id="cmTN">—</td><td class="cm-cell" id="cmFP">—</td></tr>
+            <tr><td><strong>Actual AI-Generated</strong></td><td class="cm-cell" id="cmFN">—</td><td class="cm-cell" id="cmTP">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     SUBMODAL 3: IMAGE METADATA VIEWER
+══════════════════════════════════════════════════════════════ -->
+<div class="submodal-bg" id="metadataModal">
+  <div class="submodal">
+    <button class="modal-x" id="closeMetaBtn">✕</button>
+    <div class="submodal-title">🔍 Image Properties &amp; EXIF</div>
+    <div class="submodal-sub">Detailed breakdown of hardware sensor tags and encoding metadata.</div>
+
+    <div class="submodal-section">
+      <div class="submodal-section-title">IMAGE ENCODING</div>
+      <div class="diag-grid">
+        <div class="diag-item"><span class="diag-lbl">DIMENSIONS</span><span class="diag-val" id="metaDim">—</span></div>
+        <div class="diag-item"><span class="diag-lbl">CONTAINER FORMAT</span><span class="diag-val" id="metaFormat">—</span></div>
+        <div class="diag-item"><span class="diag-lbl">COLOR SPACE</span><span class="diag-val" id="metaMode">—</span></div>
+        <div class="diag-item"><span class="diag-lbl">FILE SIZE</span><span class="diag-val" id="metaFilesize">—</span></div>
+      </div>
+    </div>
+
+    <div class="submodal-section">
+      <div class="submodal-section-title">CAMERA SENSOR &amp; EXIF</div>
+      <div class="diag-grid">
+        <div class="diag-item"><span class="diag-lbl">CAMERA HARDWARE</span><span class="diag-val" id="metaCam">—</span></div>
+        <div class="diag-item"><span class="diag-lbl">SOFTWARE / GENERATOR</span><span class="diag-val" id="metaSoftware">—</span></div>
+        <div class="diag-item" style="grid-column:1 / -1;"><span class="diag-lbl">METADATA STATUS</span><span class="diag-val" id="metaStatusDesc">—</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     SUBMODAL 4: ANALYSIS HISTORY MODAL
+══════════════════════════════════════════════════════════════ -->
+<div class="submodal-bg" id="historyModal">
+  <div class="submodal">
+    <button class="modal-x" id="closeHistBtn">✕</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="submodal-title" style="margin:0;">🕒 Session Analysis History</div>
+      <button class="btn-secondary" id="clearHistoryBtn" style="padding:4px 10px;font-size:11px;">Clear History</button>
+    </div>
+    <div class="submodal-sub">History of images evaluated during this session. Stored locally in browser session storage.</div>
+    <div class="history-list" id="historyList">
+      <p style="color:var(--txt-muted);font-size:12px;text-align:center;padding:20px;">No previous analyses recorded yet.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-l">
+    <span><strong>DeepShield</strong> — Deep Vision AI Forensics Engine</span>
+  </div>
+  <div class="footer-r">
+    <span>Grad-CAM · ResNet-50 · DenseNet-121 · Frequency Spectral Pipeline</span>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

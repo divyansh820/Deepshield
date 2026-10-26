@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "DeepShield — AI Fake Image Detector & Grad-CAM Forensics",
+  "version": "2.0",
+  "description": "Detect fake and AI-generated images using ResNet, DenseNet-121, and Grad-CAM visual heatmaps for explainable forensic analysis.",
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "DeepShield Forensics"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:5000/*"
+  ]
+}
