@@ -1,10 +1,11 @@
 {
-  "version": 2,
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 60,
+      "includeFiles": "{index.html,style.css,script.js,manifest.json,test_sample.jpg,checkpoints/**}"
+    }
+  },
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index.py"
-    },
     {
       "source": "/health",
       "destination": "/api/index.py"
@@ -27,6 +28,10 @@
     },
     {
       "source": "/analyze_batch",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/api/(.*)",
       "destination": "/api/index.py"
     }
   ]

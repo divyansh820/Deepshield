@@ -19,7 +19,12 @@ from PIL import Image
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
-import torch
+TORCH_AVAILABLE = False
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    torch = None
 
 # DeepShield Modular Components
 from models import (
@@ -85,7 +90,7 @@ def health():
 def diagnostics():
     """Returns deep system diagnostics, device info, memory, and checkpoint paths."""
     diag = model_manager.get_diagnostics()
-    diag["torch_version"] = torch.__version__
+    diag["torch_version"] = torch.__version__ if (TORCH_AVAILABLE and torch is not None) else "Not installed (Serverless Mode)"
     diag["python_version"] = sys.version.split()[0]
     return jsonify(diag)
 
