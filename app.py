@@ -50,17 +50,26 @@ CORS(app)
 class VercelPathMiddleware:
     """
     Ensures WSGI PATH_INFO reflects the original client request path on Vercel,
-    restoring it from X-Matched-Path or X-Forwarded-Uri if Vercel edge rewrite modified it to /api/index.
+    restoring it from query param 'route', X-Matched-Path, or X-Forwarded-Uri.
     """
     def __init__(self, wsgi_app):
         self.wsgi_app = wsgi_app
 
     def __call__(self, environ, start_response):
-        matched_path = environ.get('HTTP_X_MATCHED_PATH') or environ.get('HTTP_X_FORWARDED_URI')
-        if matched_path:
-            path = matched_path.split('?')[0]
-            if path and path not in ('/api/index', '/api'):
-                environ['PATH_INFO'] = path
+        query_string = environ.get('QUERY_STRING', '')
+        if 'route=' in query_string:
+            for part in query_string.split('&'):
+                if part.startswith('route='):
+                    route_val = part.split('=', 1)[1]
+                    if route_val:
+                        environ['PATH_INFO'] = '/' + route_val.lstrip('/')
+                    break
+        else:
+            matched_path = environ.get('HTTP_X_MATCHED_PATH') or environ.get('HTTP_X_FORWARDED_URI')
+            if matched_path:
+                path = matched_path.split('?')[0]
+                if path and path not in ('/api/index', '/api'):
+                    environ['PATH_INFO'] = path
         return self.wsgi_app(environ, start_response)
 
 app.wsgi_app = VercelPathMiddleware(app.wsgi_app)
@@ -97,12 +106,28 @@ def health():
     })
 
 
-@app.route('/api', methods=['GET'])
-@app.route('/api/', methods=['GET'])
-@app.route('/api/index', methods=['GET'])
+@app.route('/api', methods=['GET', 'POST', 'OPTIONS'])
+@app.route('/api/', methods=['GET', 'POST', 'OPTIONS'])
+@app.route('/api/index', methods=['GET', 'POST', 'OPTIONS'])
 def api_root():
-    """Vercel function entrypoint status."""
+    """Vercel function entrypoint status and POST fallback handler."""
+    if request.method == 'OPTIONS':
+        return '', 200
+    if request.method == 'POST':
+        return analyze()
     return health()
+
+
+@app.route('/debug', methods=['GET', 'POST'])
+@app.route('/api/debug', methods=['GET', 'POST'])
+def debug_info():
+    """Debug route to inspect Vercel environment variables and request headers."""
+    return jsonify({
+        "path": request.path,
+        "method": request.method,
+        "query_string": request.query_string.decode('utf-8', errors='replace'),
+        "headers": dict(request.headers)
+    })
 
 
 @app.route('/diagnostics', methods=['GET'])

@@ -8,31 +8,35 @@
   "rewrites": [
     {
       "source": "/health",
-      "destination": "/api/index"
+      "destination": "/api/index?route=health"
     },
     {
       "source": "/diagnostics",
-      "destination": "/api/index"
+      "destination": "/api/index?route=diagnostics"
     },
     {
       "source": "/benchmarks",
-      "destination": "/api/index"
+      "destination": "/api/index?route=benchmarks"
     },
     {
       "source": "/models",
-      "destination": "/api/index"
+      "destination": "/api/index?route=models"
     },
     {
       "source": "/analyze",
-      "destination": "/api/index"
+      "destination": "/api/index?route=analyze"
     },
     {
       "source": "/analyze_batch",
-      "destination": "/api/index"
+      "destination": "/api/index?route=analyze_batch"
+    },
+    {
+      "source": "/debug",
+      "destination": "/api/index?route=debug"
     },
     {
       "source": "/api/(.*)",
-      "destination": "/api/index"
+      "destination": "/api/index?route=$1"
     }
   ]
 }
