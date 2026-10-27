@@ -8,31 +8,31 @@
   "rewrites": [
     {
       "source": "/health",
-      "destination": "/api/index.py"
+      "destination": "/api/index"
     },
     {
       "source": "/diagnostics",
-      "destination": "/api/index.py"
+      "destination": "/api/index"
     },
     {
       "source": "/benchmarks",
-      "destination": "/api/index.py"
+      "destination": "/api/index"
     },
     {
       "source": "/models",
-      "destination": "/api/index.py"
+      "destination": "/api/index"
     },
     {
       "source": "/analyze",
-      "destination": "/api/index.py"
+      "destination": "/api/index"
     },
     {
       "source": "/analyze_batch",
-      "destination": "/api/index.py"
+      "destination": "/api/index"
     },
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.py"
+      "destination": "/api/index"
     }
   ]
 }

@@ -47,6 +47,24 @@ logger = logging.getLogger("DeepShield.Server")
 app = Flask(__name__)
 CORS(app)
 
+class VercelPathMiddleware:
+    """
+    Ensures WSGI PATH_INFO reflects the original client request path on Vercel,
+    restoring it from X-Matched-Path or X-Forwarded-Uri if Vercel edge rewrite modified it to /api/index.
+    """
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        matched_path = environ.get('HTTP_X_MATCHED_PATH') or environ.get('HTTP_X_FORWARDED_URI')
+        if matched_path:
+            path = matched_path.split('?')[0]
+            if path and path not in ('/api/index', '/api'):
+                environ['PATH_INFO'] = path
+        return self.wsgi_app(environ, start_response)
+
+app.wsgi_app = VercelPathMiddleware(app.wsgi_app)
+
 # Configuration & Limits
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MAX_CONTENT_LENGTH = 25 * 1024 * 1024  # 25 MB max payload
@@ -61,32 +79,34 @@ def index():
     return send_from_directory(BASE_DIR, 'index.html')
 
 
-@app.route('/<path:filename>', methods=['GET'])
-def serve_static(filename):
-    file_path = os.path.join(BASE_DIR, filename)
-    if os.path.exists(file_path) and os.path.isfile(file_path):
-        return send_from_directory(BASE_DIR, filename)
-    return jsonify({"error": "Resource not found"}), 404
-
-
 @app.route('/health', methods=['GET'])
+@app.route('/api/health', methods=['GET'])
 def health():
     """Returns server operational status, active mode, and checkpoint readiness."""
-    diagnostics = model_manager.get_diagnostics()
+    diagnostics_data = model_manager.get_diagnostics()
     return jsonify({
         "status": "online",
         "service": "DeepShield AI Image Forensics & Grad-CAM Engine",
         "version": "2.1.0",
-        "device": diagnostics["device"],
-        "active_mode": diagnostics["active_mode"],
-        "is_trained": diagnostics["densenet_trained"] and diagnostics["resnet_trained"],
-        "densenet_ready": diagnostics["densenet_ready"],
-        "resnet_ready": diagnostics["resnet_ready"],
-        "checkpoints": diagnostics["checkpoints"]
+        "device": diagnostics_data["device"],
+        "active_mode": diagnostics_data["active_mode"],
+        "is_trained": diagnostics_data["densenet_trained"] and diagnostics_data["resnet_trained"],
+        "densenet_ready": diagnostics_data["densenet_ready"],
+        "resnet_ready": diagnostics_data["resnet_ready"],
+        "checkpoints": diagnostics_data["checkpoints"]
     })
 
 
+@app.route('/api', methods=['GET'])
+@app.route('/api/', methods=['GET'])
+@app.route('/api/index', methods=['GET'])
+def api_root():
+    """Vercel function entrypoint status."""
+    return health()
+
+
 @app.route('/diagnostics', methods=['GET'])
+@app.route('/api/diagnostics', methods=['GET'])
 def diagnostics():
     """Returns deep system diagnostics, device info, memory, and checkpoint paths."""
     diag = model_manager.get_diagnostics()
@@ -96,6 +116,7 @@ def diagnostics():
 
 
 @app.route('/benchmarks', methods=['GET'])
+@app.route('/api/benchmarks', methods=['GET'])
 def benchmarks():
     """Returns verified model evaluation metrics from held-out test data."""
     results_path = os.path.join(BASE_DIR, "checkpoints", "evaluation_results.json")
@@ -113,11 +134,13 @@ def benchmarks():
 
 
 @app.route('/models', methods=['GET'])
+@app.route('/api/models', methods=['GET'])
 def list_models():
     """Lists available model architectures and their forensic specialties."""
     diag = model_manager.get_diagnostics()
     return jsonify({
         "active_mode": diag["active_mode"],
+
         "available_models": [
             {
                 "id": "ensemble",
@@ -313,6 +336,7 @@ def process_single_image(image_bytes: bytes, selected_model: str = "ensemble") -
 # 3. ANALYSIS API ENDPOINTS
 # ─────────────────────────────────────────────────────────────────────────────
 @app.route('/analyze', methods=['POST', 'OPTIONS'])
+@app.route('/api/analyze', methods=['POST', 'OPTIONS'])
 def analyze():
     """Handles single image upload and executes the deep forensic pipeline."""
     if request.method == 'OPTIONS':
@@ -345,6 +369,7 @@ def analyze():
 
 
 @app.route('/analyze_batch', methods=['POST', 'OPTIONS'])
+@app.route('/api/analyze_batch', methods=['POST', 'OPTIONS'])
 def analyze_batch():
     """
     Handles batch upload of multiple images.
@@ -397,6 +422,16 @@ def analyze_batch():
         "summary": summary,
         "results": results
     })
+
+
+@app.route('/<path:filename>', methods=['GET'])
+def serve_static(filename):
+    """Fallback static asset server for local development."""
+    file_path = os.path.join(BASE_DIR, filename)
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return send_from_directory(BASE_DIR, filename)
+    return jsonify({"error": "Resource not found"}), 404
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

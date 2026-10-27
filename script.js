@@ -114,6 +114,12 @@ let sessionHistory = [];
 let batchFiles = [];
 let batchResults = [];
 
+// Base API URL detection (auto-connect to local Flask server if opened via file:// or non-5000 dev server)
+const API_BASE = (window.location.protocol === 'file:' || (window.location.hostname === '127.0.0.1' && window.location.port !== '5000') || (window.location.hostname === 'localhost' && window.location.port !== '5000'))
+  ? 'http://127.0.0.1:5000'
+  : '';
+
+
 // ── PARTICLE CANVAS BACKGROUND ──────────────────────────────────
 const canvas = document.getElementById('bgCanvas');
 if (canvas) {
@@ -184,7 +190,7 @@ function toast(icon, title, sub, duration = 3000) {
 // ── HEALTH & MODEL STATUS CHECK ────────────────────────────────
 async function checkSystemHealth() {
   try {
-    const res = await fetch('/health');
+    const res = await fetch(API_BASE + '/health');
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
 
@@ -200,7 +206,7 @@ async function checkSystemHealth() {
     }
   } catch (e) {
     sDot.className = 'sdot offline';
-    sLabel.textContent = 'server offline';
+    sLabel.textContent = window.location.protocol === 'file:' ? 'server offline (start server)' : 'server offline';
     modelStatusPill.className = 'nav-badge-pill';
     modelStatusLabel.textContent = 'Disconnected';
   }
@@ -441,7 +447,7 @@ async function runAnalysis() {
     fd.append('image', currentFile);
     fd.append('model', selectedModel);
 
-    const res = await fetch('/analyze', {
+    const res = await fetch(API_BASE + '/analyze', {
       method: 'POST',
       body: fd
     });
@@ -477,7 +483,11 @@ async function runAnalysis() {
   } catch (err) {
     clearInterval(stepTimer);
     closeModal();
-    toast('⚠️', 'Analysis Failed', err.message || 'Server error occurred', 5000);
+    let errMsg = err.message || 'Server error occurred';
+    if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
+      errMsg = 'Backend server offline. Please run start_server.bat or "python app.py".';
+    }
+    toast('⚠️', 'Analysis Failed', errMsg, 6000);
     console.error('[DeepShield Analysis Error]', err);
   } finally {
     runBtn.disabled = false;
@@ -767,7 +777,7 @@ closeMetaBtn.addEventListener('click', () => metadataModal.classList.remove('ope
 // ── FEATURE G: MODEL DIAGNOSTICS MODAL ─────────────────────────
 navDiagnosticsBtn.addEventListener('click', async () => {
   try {
-    const res = await fetch('/diagnostics');
+    const res = await fetch(API_BASE + '/diagnostics');
     const data = await res.json();
 
     document.getElementById('diagDevice').textContent = data.device || 'CPU';
@@ -793,7 +803,7 @@ closeDiagBtn.addEventListener('click', () => diagnosticsModal.classList.remove('
 // ── FEATURE E: BENCHMARK EVALUATION MODAL ──────────────────────
 navBenchmarksBtn.addEventListener('click', async () => {
   try {
-    const res = await fetch('/benchmarks');
+    const res = await fetch(API_BASE + '/benchmarks');
     const data = await res.json();
 
     if (data.status === 'evaluated' && data.metrics) {
@@ -912,7 +922,7 @@ runBatchBtn.addEventListener('click', async () => {
     batchFiles.forEach(f => fd.append('images', f));
     fd.append('model', selectedModel);
 
-    const res = await fetch('/analyze_batch', {
+    const res = await fetch(API_BASE + '/analyze_batch', {
       method: 'POST',
       body: fd
     });
